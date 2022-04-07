@@ -72,33 +72,29 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	})
 
 	// filter variable in init func
-	nodeTypes := []ast.Node{
-		(*ast.FuncDecl)(nil),
-	}
-	inspect.Preorder(nodeTypes, func(n ast.Node) {
-		v := n.(*ast.FuncDecl)
-		for _, f := range pass.Files {
-			for _, decl := range f.Decls {
-				if decl, ok := decl.(*ast.FuncDecl); ok && decl.Name.Name == "init" {
-					funcScope := pass.TypesInfo.Scopes[v.Type]
+	for _, f := range pass.Files {
+		for _, decl := range f.Decls {
+			if decl, ok := decl.(*ast.FuncDecl); ok && decl.Name.Name == "init" {
+				funcScope := pass.TypesInfo.Scopes[decl.Type]
 
-					for k, modifies := range modifiedGlobalVariable {
-						newModifies := make([]*ast.Ident, 0, len(modifies))
-						for _, modify := range modifies {
-							if !funcScope.Contains(modify.Pos()) {
-								newModifies = append(newModifies, modify)
-							}
-						}
-						if len(newModifies) > 0 {
-							modifiedGlobalVariable[k] = newModifies
+				for k, modifies := range modifiedGlobalVariable {
+					newModifies := make([]*ast.Ident, 0, len(modifies))
+					for _, modify := range modifies {
+						if !funcScope.Contains(modify.Pos()) {
+							newModifies = append(newModifies, modify)
 						} else {
-							delete(modifiedGlobalVariable, k)
+							pass.ReportRangef(modify, "in init func")
 						}
+					}
+					if len(newModifies) > 0 {
+						modifiedGlobalVariable[k] = newModifies
+					} else {
+						delete(modifiedGlobalVariable, k)
 					}
 				}
 			}
 		}
-	})
+	}
 
 	for k, modifies := range modifiedGlobalVariable {
 		pass.ReportRangef(k, "global variable")
